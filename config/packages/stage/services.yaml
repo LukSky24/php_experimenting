@@ -1,0 +1,10 @@
+services:
+    Faker\Generator:
+        factory: ['Faker\Factory', 'create']
+        arguments:
+            - 'pl_PL'
+
+    App\DataFixtures\:
+        resource: '%kernel.project_dir%/fixtures'
+        autowire: true
+        tags: [doctrine.fixture.orm]
