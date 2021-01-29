@@ -4,12 +4,24 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices/configuration.html#application-related-configuration
 parameters:
+    locale: 'pl'
+    storage_dir_path: '%kernel.project_dir%/storage'
 
 services:
     # default configuration for services in *this* file
     _defaults:
         autowire: true      # Automatically injects dependencies in your services.
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+
+    _instanceof:
+        App\Common\CQRS\CommandHandlerInterface:
+            tags:
+                - { name: messenger.message_handler, bus: messenger.bus.command }
+
+        App\Common\CQRS\QueryHandlerInterface:
+            tags:
+                - { name: messenger.message_handler, bus: messenger.bus.query }
+
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
@@ -21,11 +33,62 @@ services:
             - '../src/Kernel.php'
             - '../src/Tests/'
 
-    # controllers are imported separately to make sure services can be injected
-    # as action arguments even if you don't extend any base controller class
-    App\Controller\:
-        resource: '../src/Controller/'
-        tags: ['controller.service_arguments']
+    # Globals
+    DateTimeImmutable:
+        class: \DateTimeImmutable
 
+    # App\Common
+    App\Common\Doctrine\Listeners\NullableEmbeddableEventListener:
+        arguments:
+            - '@App\Common\Utils\ReflectionPropertyAccessor'
+        # TODO: Uncomment this part when we will have nullable embeddable
+        #calls:
+        #    - { method: addMapping, arguments: [ App\Core\Pharmacies\Entities\Pharmacy, address.flatNumber ] }
+        #    - { method: addMapping, arguments: [ App\Core\Pharmacies\Entities\Pharmacy, coordinates ] }
+        #tags:
+        #    - { name: doctrine.orm.entity_listener, entity: App\Core\Pharmacies\Entities\Pharmacy, event: postLoad, method: onPostLoad }
+        #    - { name: doctrine.orm.entity_listener, entity: Proxies\__CG__\App\Core\Pharmacies\Entities\Pharmacy, event: postLoad, method: onPostLoad }
+
+    App\Common\Mailer\Mailer:
+        arguments:
+            - '@messenger.bus.default'
+            - '@translator'
+            - '%env(MAIL_SENDER_EMAIL)%'
+            - '%env(MAIL_SENDER_NAME)%'
+
+    App\Common\ApplicationContext:
+        shared: true
+        arguments:
+            - false
+            - '%locale%'
+
+    App\Common\CQRS\Buses\CommandBus:
+        arguments:
+            - '@messenger.bus.command'
+
+    App\Common\CQRS\Buses\QueryBus:
+        arguments:
+            - '@messenger.bus.query'
+
+    #Place to add config for handlers or repositories
+
+    # App\Users
+    App\Users\Repositories\UserRepositoryInterface:
+        class: App\Users\Repositories\UserRepository
+        factory: [ '@doctrine.orm.entity_manager', getRepository ]
+        arguments:
+            - App\Users\Entities\AbstractUser
+
+    App\Users\Repositories\RoleRepositoryInterface:
+        class: App\Users\Repositories\RoleRepository
+        factory: [ '@doctrine.orm.entity_manager', getRepository ]
+        arguments:
+            - App\Users\Entities\Role
+
+    App\Users\Repositories\ApplicationRepositoryInterface:
+        class: App\Users\Repositories\ApplicationRepository
+        factory: [ '@doctrine.orm.entity_manager', getRepository ]
+        arguments:
+            - App\Users\Entities\Application
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
